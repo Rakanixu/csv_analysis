@@ -18,14 +18,14 @@ import (
 
 var results []*data.Data
 var (
-	deviceKey, deviceName *string
+	key, value *string
 )
 
 func main() {
 	bs := flag.Int64("m", 800000000, "CSV file size (bytes) default to 800MB")
 	col := flag.String("c", "Error Code", "Column / dimension to apply aggregation")
-	deviceKey = flag.String("device_key", "Device", "Device key name")
-	deviceName = flag.String("device_val", "Chromecast", "Device value name")
+	key = flag.String("dimension_key", "Device", "Dimension key name")
+	value = flag.String("dimension_val", "Chromecast", "Dimension value")
 	flag.Parse()
 
 	if *col == "" {
@@ -74,7 +74,7 @@ func analyzeCSVs(paths []string, size int64, colName string) {
 			switch trimDoubleQuote(v) {
 			case colName:
 				i = k
-			case *deviceKey:
+			case *key:
 				j = k
 			}
 		}
@@ -88,7 +88,7 @@ func analyzeCSV(name string, csv []string, index, deviceIndex int) {
 	d := data.NewData(name)
 	f := false
 
-	if deviceIndex > 0 && len(*deviceName) > 0 {
+	if deviceIndex > 0 && len(*value) > 0 {
 		f = true
 	}
 
@@ -96,7 +96,7 @@ func analyzeCSV(name string, csv []string, index, deviceIndex int) {
 		r := strings.Split(v, ",")
 
 		// Don't push records which type is different to the one set on flags
-		if len(r) > 1 && !(f && r[deviceIndex] != *deviceName) {
+		if len(r) > 1 && !(f && r[deviceIndex] != *value) {
 			n++
 			d.AddRecord(data.NewRecord(fmt.Sprintf("%s %s", r[index], r[1])))
 		}

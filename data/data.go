@@ -5,6 +5,11 @@ import (
 	"log"
 	"strings"
 	"time"
+
+	"encoding/json"
+
+	"github.com/Rakanixu/csv_analysis/db"
+	"github.com/nu7hatch/gouuid"
 )
 
 const (
@@ -102,6 +107,49 @@ func (d *Data) Print() {
 		fmt.Print(v.count)
 		fmt.Println("")
 	}
+}
+
+// Dump ...
+func (d *Data) Dump() error {
+	type info struct {
+		ID          string  `json:"id"`
+		Count       int64   `json:"count"`
+		Total       int64   `json:"total"`
+		Description string  `json:"description"`
+		Percentage  float64 `json:"percentage"`
+		Date        string  `json:"date"`
+		CsvFile     string  `json:"csv_file"`
+	}
+
+	for _, v := range d.Records {
+		u, err := uuid.NewV4()
+		if err != nil {
+			log.Println("ERROR GENRATING UUID", err)
+		}
+
+		i := info{
+			ID:          u.String(),
+			Count:       v.count,
+			Total:       d.NumTotalColumns,
+			Description: v.description,
+			Percentage:  v.percentage,
+			Date:        d.date.String(),
+			CsvFile:     d.name,
+		}
+
+		/*		db.BulkIndex(d.date.String(), )*/
+
+		b, err := json.Marshal(i)
+		if err != nil {
+			log.Println("ERROR MARSHALLING", err)
+		}
+
+		if err := db.Index(u.String(), string(b)); err != nil {
+			log.Println("ERROR INDEXING", err)
+		}
+	}
+
+	return nil
 }
 
 // DataSlice ...

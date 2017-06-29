@@ -1,9 +1,14 @@
 # CSV analysis
 
-Find all CSV files in the same directory and run an aggregation over a column / dimension. Other dimension can filter results into the agg. Every CSV file is treated individully. The program is memory intensive, but can be managed by setting -t flag accordingly to the hardware.
+Find all CSV files in the same directory and run an aggregation over a column / dimension. Other dimension can filter results into the agg. Every CSV file is treated individully. The program is memory intensive, but can be managed by setting -t flag accordingly to the hardware and CSV files size.
+
+Data is dumped to ElasticSearch
+```
+docker-compose -f db.yml up
+```
 
 ```
-go run main.go -c "Error Code" -p /Users/*/Downloads -t 8 -dimension_key Device -dimension_val Chromecast
+go run main.go -c "Error Code" -p /Users/*/Downloads -t 4 -dimension_key Device -dimension_val Chromecast
 
 ```
 
@@ -16,5 +21,5 @@ go run main.go -c "Error Code" -p /Users/*/Downloads -t 8 -dimension_key Device 
 ```
 Binary is available:
 ```
-./csv_analysis  -c "Error Code" -p /Users/*/Downloads -t 8 -dimension_key Device -dimension_val Chromecast
+./csv_analysis  -c "Error Code" -p /Users/*/Downloads -t 4 -dimension_key Device -dimension_val Chromecast
 ```

@@ -13,29 +13,32 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-
 	"sync"
 
 	"github.com/Rakanixu/csv_analysis/data"
+	"github.com/Rakanixu/csv_analysis/db"
+	_ "github.com/Rakanixu/csv_analysis/db/elastic"
 )
 
 const (
 	ERR_CODE = "Error Code"
 )
 
-var results []*data.Data
 var (
+	results               []*data.Data
 	key, value, dimension *string
+	dbEndoint             *string
 	maxGoroutines         *int
 	wg                    sync.WaitGroup
 )
 
 func main() {
 	p := flag.String("p", "", "Path to CSV files")
-	maxGoroutines = flag.Int("t", 8, "Number of parallel gourotines")
+	maxGoroutines = flag.Int("t", 4, "Number of parallel gourotines")
 	dimension = flag.String("c", ERR_CODE, "Column / dimension to apply aggregation")
 	key = flag.String("dimension_key", "Device", "Dimension key name")
 	value = flag.String("dimension_val", "Chromecast", "Dimension value")
+	dbEndoint = flag.String("db_endpoint", "http://localhost:9200", "DB endpoint")
 	flag.Parse()
 
 	if *dimension == "" {
@@ -43,11 +46,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize imported DB implementation
+	if err := db.Init(*dbEndoint); err != nil {
+		log.Fatal(err)
+	}
+
 	analyzeCSVs(getCSVFiles(*p))
 
 	sort.Sort(data.DataSlice(results))
 	for _, v := range results {
+		// Console output
 		v.Print()
+		// Dump to registered DB
+		v.Dump()
 	}
 }
 
@@ -83,7 +94,7 @@ func analyzeCSVs(paths []string) {
 			defer s.Close()
 
 			fi, err := s.Stat()
-			log.Println("Size", fi.Name(), fi.Size())
+			log.Println("Process:", fi.Name(), "Bytes:", fi.Size())
 
 			// Increase size if CSV file is > 500MB
 			b := make([]byte, fi.Size())

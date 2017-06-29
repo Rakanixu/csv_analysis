@@ -16,25 +16,29 @@ import (
 	"github.com/Rakanixu/csv_analysis/data"
 )
 
+const (
+	ERR_CODE = "Error Code"
+)
+
 var results []*data.Data
 var (
-	key, value *string
+	key, value, dimension *string
 )
 
 func main() {
 	bs := flag.Int64("m", 800000000, "CSV file size (bytes) default to 800MB")
-	col := flag.String("c", "Error Code", "Column / dimension to apply aggregation")
 	p := flag.String("p", "", "path to CSV files")
+	dimension = flag.String("c", ERR_CODE, "Column / dimension to apply aggregation")
 	key = flag.String("dimension_key", "Device", "Dimension key name")
 	value = flag.String("dimension_val", "Chromecast", "Dimension value")
 	flag.Parse()
 
-	if *col == "" {
+	if *dimension == "" {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
 
-	analyzeCSVs(getCSVFiles(*p), *bs, *col)
+	analyzeCSVs(getCSVFiles(*p), *bs)
 
 	sort.Sort(data.DataSlice(results))
 	for _, v := range results {
@@ -57,7 +61,7 @@ func getCSVFiles(path string) []string {
 	return files
 }
 
-func analyzeCSVs(paths []string, size int64, aggDimension string) {
+func analyzeCSVs(paths []string, size int64) {
 	for _, v := range paths {
 		s, err := os.Open(v)
 		if err != nil {
@@ -79,7 +83,7 @@ func analyzeCSVs(paths []string, size int64, aggDimension string) {
 		for k, v := range columms {
 			// CSV can contain CDN or "CDN"
 			switch trimDoubleQuote(v) {
-			case aggDimension:
+			case *dimension:
 				i = k
 			case *key:
 				j = k
@@ -90,13 +94,13 @@ func analyzeCSVs(paths []string, size int64, aggDimension string) {
 	}
 }
 
-func analyzeCSV(name string, csv []string, aggDimensionIndex, deviceIndex int) {
-	if aggDimensionIndex >= 0 && deviceIndex >= 0 {
+func analyzeCSV(name string, csv []string, aggDimensionIndex, filterIndex int) {
+	if aggDimensionIndex >= 0 && filterIndex >= 0 {
 		var n int64
 		d := data.NewData(name)
 		f := false
 
-		if deviceIndex > 0 && len(*value) > 0 {
+		if filterIndex > 0 && len(*value) > 0 {
 			f = true
 		}
 
@@ -104,9 +108,15 @@ func analyzeCSV(name string, csv []string, aggDimensionIndex, deviceIndex int) {
 			r := strings.Split(v, ",")
 
 			// Don't push records which type is different to the one set on flags
-			if len(r) > 1 && len(r) > aggDimensionIndex && !(f && r[deviceIndex] != *value) {
+			if len(r) > 1 && len(r) > aggDimensionIndex && !(f && r[filterIndex] != *value) {
+				des := r[aggDimensionIndex]
 				n++
-				d.AddRecord(data.NewRecord(fmt.Sprintf("%s %s", r[aggDimensionIndex], r[1])))
+
+				if *dimension == ERR_CODE {
+					// HARDCODED: specific case for a CSV specific pattern
+					des = fmt.Sprintf("%s %s", r[aggDimensionIndex], r[1])
+				}
+				d.AddRecord(data.NewRecord(des))
 			}
 		}
 		d.SetTotal(n)

@@ -4,6 +4,7 @@ package main
 Usage: go run main.go -c "Error Code" -dimension_key Device -dimension_val Chromecast
 */
 
+// TODO: Get the bigger size of all CSV to process so we do not waste memory
 import (
 	"flag"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"sync"
 
 	"github.com/Rakanixu/csv_analysis/data"
 )
@@ -23,11 +26,13 @@ const (
 var results []*data.Data
 var (
 	key, value, dimension *string
+	maxGoroutines         *int
+	wg                    sync.WaitGroup
 )
 
 func main() {
-	bs := flag.Int64("m", 800000000, "CSV file size (bytes) default to 800MB")
-	p := flag.String("p", "", "path to CSV files")
+	p := flag.String("p", "", "Path to CSV files")
+	maxGoroutines = flag.Int("t", 8, "Number of parallel gourotines")
 	dimension = flag.String("c", ERR_CODE, "Column / dimension to apply aggregation")
 	key = flag.String("dimension_key", "Device", "Dimension key name")
 	value = flag.String("dimension_val", "Chromecast", "Dimension value")
@@ -38,7 +43,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	analyzeCSVs(getCSVFiles(*p), *bs)
+	analyzeCSVs(getCSVFiles(*p))
 
 	sort.Sort(data.DataSlice(results))
 	for _, v := range results {
@@ -61,37 +66,55 @@ func getCSVFiles(path string) []string {
 	return files
 }
 
-func analyzeCSVs(paths []string, size int64) {
+func analyzeCSVs(paths []string) {
+	// Channel buffer equal to number of gourotines
+	blocker := make(chan struct{}, *maxGoroutines)
+
 	for _, v := range paths {
-		s, err := os.Open(v)
-		if err != nil {
-			log.Fatal(err)
-		}
+		// Fill blocker channel
+		blocker <- struct{}{}
+		wg.Add(1)
 
-		// Increase size if CSV file is > 500MB
-		b := make([]byte, size)
-		count, err := s.Read(b)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		records := strings.Split(string(b[:count]), "\n")
-		columms := strings.Split(records[0], ",")
-
-		i := -1
-		j := -1
-		for k, v := range columms {
-			// CSV can contain CDN or "CDN"
-			switch trimDoubleQuote(v) {
-			case *dimension:
-				i = k
-			case *key:
-				j = k
+		go func(path string) {
+			s, err := os.Open(path)
+			if err != nil {
+				log.Fatal(err)
 			}
-		}
+			defer s.Close()
 
-		analyzeCSV(v, records[1:], i, j)
+			fi, err := s.Stat()
+			log.Println("Size", fi.Name(), fi.Size())
+
+			// Increase size if CSV file is > 500MB
+			b := make([]byte, fi.Size())
+			count, err := s.Read(b)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			records := strings.Split(string(b[:count]), "\n")
+			columms := strings.Split(records[0], ",")
+
+			i := -1
+			j := -1
+			for k, v := range columms {
+				// CSV can contain CDN or "CDN"
+				switch trimDoubleQuote(v) {
+				case *dimension:
+					i = k
+				case *key:
+					j = k
+				}
+			}
+
+			analyzeCSV(path, records[1:], i, j)
+			// Read from blocker channel to allow next iteration
+			<-blocker
+			wg.Done()
+		}(v)
 	}
+
+	wg.Wait()
 }
 
 func analyzeCSV(name string, csv []string, aggDimensionIndex, filterIndex int) {
@@ -108,7 +131,7 @@ func analyzeCSV(name string, csv []string, aggDimensionIndex, filterIndex int) {
 			r := strings.Split(v, ",")
 
 			// Don't push records which type is different to the one set on flags
-			if len(r) > 1 && len(r) > aggDimensionIndex && !(f && r[filterIndex] != *value) {
+			if len(r) > 1 && len(r) > aggDimensionIndex && len(r) > filterIndex && !(f && r[filterIndex] != *value) {
 				des := r[aggDimensionIndex]
 				n++
 

@@ -57,7 +57,7 @@ func getCSVFiles(path string) []string {
 	return files
 }
 
-func analyzeCSVs(paths []string, size int64, colName string) {
+func analyzeCSVs(paths []string, size int64, aggDimension string) {
 	for _, v := range paths {
 		s, err := os.Open(v)
 		if err != nil {
@@ -79,7 +79,7 @@ func analyzeCSVs(paths []string, size int64, colName string) {
 		for k, v := range columms {
 			// CSV can contain CDN or "CDN"
 			switch trimDoubleQuote(v) {
-			case colName:
+			case aggDimension:
 				i = k
 			case *key:
 				j = k
@@ -90,28 +90,30 @@ func analyzeCSVs(paths []string, size int64, colName string) {
 	}
 }
 
-func analyzeCSV(name string, csv []string, index, deviceIndex int) {
-	var n int64
-	d := data.NewData(name)
-	f := false
+func analyzeCSV(name string, csv []string, aggDimensionIndex, deviceIndex int) {
+	if aggDimensionIndex >= 0 && deviceIndex >= 0 {
+		var n int64
+		d := data.NewData(name)
+		f := false
 
-	if deviceIndex > 0 && len(*value) > 0 {
-		f = true
-	}
-
-	for _, v := range csv {
-		r := strings.Split(v, ",")
-
-		// Don't push records which type is different to the one set on flags
-		if len(r) > 1 && !(f && r[deviceIndex] != *value) {
-			n++
-			d.AddRecord(data.NewRecord(fmt.Sprintf("%s %s", r[index], r[1])))
+		if deviceIndex > 0 && len(*value) > 0 {
+			f = true
 		}
-	}
-	d.SetTotal(n)
-	d.Date()
 
-	results = append(results, d)
+		for _, v := range csv {
+			r := strings.Split(v, ",")
+
+			// Don't push records which type is different to the one set on flags
+			if len(r) > 1 && len(r) > aggDimensionIndex && !(f && r[deviceIndex] != *value) {
+				n++
+				d.AddRecord(data.NewRecord(fmt.Sprintf("%s %s", r[aggDimensionIndex], r[1])))
+			}
+		}
+		d.SetTotal(n)
+		d.Date()
+
+		results = append(results, d)
+	}
 }
 
 func trimDoubleQuote(s string) string {

@@ -1,7 +1,7 @@
 package main
 
 /*
-Usage: go run main.go -c "Error Code" -device_key Device -device_val Chromecast
+Usage: go run main.go -c "Error Code" -dimension_key Device -dimension_val Chromecast
 */
 
 import (
@@ -24,6 +24,7 @@ var (
 func main() {
 	bs := flag.Int64("m", 800000000, "CSV file size (bytes) default to 800MB")
 	col := flag.String("c", "Error Code", "Column / dimension to apply aggregation")
+	p := flag.String("p", "", "path to CSV files")
 	key = flag.String("dimension_key", "Device", "Dimension key name")
 	value = flag.String("dimension_val", "Chromecast", "Dimension value")
 	flag.Parse()
@@ -33,7 +34,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	analyzeCSVs(getCSVFiles(), *bs, *col)
+	analyzeCSVs(getCSVFiles(*p), *bs, *col)
 
 	sort.Sort(data.DataSlice(results))
 	for _, v := range results {
@@ -41,8 +42,14 @@ func main() {
 	}
 }
 
-func getCSVFiles() []string {
-	files, err := filepath.Glob("*.csv")
+func getCSVFiles(path string) []string {
+	if path != "" {
+		path = fmt.Sprintf("%s/*.csv", path)
+	} else {
+		path = "*.csv"
+	}
+
+	files, err := filepath.Glob(path)
 	if err != nil {
 		log.Fatal(err)
 	}

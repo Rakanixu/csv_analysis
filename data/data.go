@@ -1,19 +1,19 @@
 package data
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
 	"time"
-
-	"encoding/json"
 
 	"github.com/Rakanixu/csv_analysis/db"
 	"github.com/nu7hatch/gouuid"
 )
 
 const (
-	PADDING = 45
+	PADDING      = 45
+	CONN_REFUSED = "connection refused"
 )
 
 // Data ...
@@ -144,7 +144,7 @@ func (d *Data) Dump() error {
 			log.Println("ERROR MARSHALLING", err)
 		}
 
-		if err := db.Index(u.String(), string(b)); err != nil {
+		if err := db.Index(u.String(), string(b)); err != nil && !strings.Contains(err.Error(), CONN_REFUSED) {
 			log.Println("ERROR INDEXING", err)
 		}
 	}

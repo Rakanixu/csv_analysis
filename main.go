@@ -21,7 +21,10 @@ import (
 )
 
 const (
-	ERR_CODE = "Error Code"
+	ERR_CODE        = "Error Code"
+	METADATA        = "Metadata"
+	TRIM_LEFT_JSON  = `retry_hash`
+	TRIM_RIGHT_JSON = `streamable_id`
 )
 
 var (
@@ -57,6 +60,8 @@ func main() {
 	for _, v := range results {
 		// Console output
 		v.Print()
+		// CSV generation
+		v.Export()
 		// Dump to registered DB
 		v.Dump()
 	}
@@ -96,7 +101,6 @@ func analyzeCSVs(paths []string) {
 			fi, err := s.Stat()
 			log.Println("Process:", fi.Name(), "Bytes:", fi.Size())
 
-			// Increase size if CSV file is > 500MB
 			b := make([]byte, fi.Size())
 			count, err := s.Read(b)
 			if err != nil {
@@ -108,6 +112,7 @@ func analyzeCSVs(paths []string) {
 
 			i := -1
 			j := -1
+			l := -1
 			for k, v := range columms {
 				// CSV can contain CDN or "CDN"
 				switch trimDoubleQuote(v) {
@@ -115,10 +120,12 @@ func analyzeCSVs(paths []string) {
 					i = k
 				case *key:
 					j = k
+				case METADATA:
+					l = k
 				}
 			}
 
-			analyzeCSV(path, records[1:], i, j)
+			analyzeCSV(path, records[1:], i, j, l)
 			// Read from blocker channel to allow next iteration
 			<-blocker
 			wg.Done()
@@ -128,8 +135,8 @@ func analyzeCSVs(paths []string) {
 	wg.Wait()
 }
 
-func analyzeCSV(name string, csv []string, aggDimensionIndex, filterIndex int) {
-	if aggDimensionIndex >= 0 && filterIndex >= 0 {
+func analyzeCSV(name string, csv []string, aggDimensionIndex, filterIndex, metadataIndex int) {
+	if aggDimensionIndex >= 0 && filterIndex >= 0 && metadataIndex >= 0 {
 		var n int64
 		d := data.NewData(name)
 		f := false
@@ -143,6 +150,14 @@ func analyzeCSV(name string, csv []string, aggDimensionIndex, filterIndex int) {
 
 			// Don't push records which type is different to the one set on flags
 			if len(r) > 1 && len(r) > aggDimensionIndex && len(r) > filterIndex && !(f && r[filterIndex] != *value) {
+				var rh string
+				left := strings.Index(v, TRIM_LEFT_JSON)
+				right := strings.Index(v, TRIM_RIGHT_JSON)
+
+				// Found hash
+				if left > 0 && right > 0 {
+					rh = v[left+len(TRIM_LEFT_JSON)+5 : right-5] // Get the hash from the stringify JSON
+				}
 				des := r[aggDimensionIndex]
 				n++
 
@@ -150,7 +165,7 @@ func analyzeCSV(name string, csv []string, aggDimensionIndex, filterIndex int) {
 					// HARDCODED: specific case for a CSV specific pattern
 					des = fmt.Sprintf("%s %s", r[aggDimensionIndex], r[1])
 				}
-				d.AddRecord(data.NewRecord(des))
+				d.AddRecord(data.NewRecord(des, rh))
 			}
 		}
 		d.SetTotal(n)

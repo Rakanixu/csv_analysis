@@ -1,9 +1,12 @@
 package data
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,8 +15,9 @@ import (
 )
 
 const (
-	PADDING      = 45
-	CONN_REFUSED = "connection refused"
+	PADDING              = 45
+	CONN_REFUSED         = "connection refused"
+	NO_ERROR_DESCRIPTION = "OK "
 )
 
 // Data ...
@@ -21,33 +25,46 @@ type Data struct {
 	date            time.Time
 	name            string
 	Records         map[string]*Record
+	AggHashRecords  map[string][]*Record
 	NumTotalColumns int64
+	NumTotalRetries int64
 }
 
 // Record ...
 type Record struct {
-	description string
-	count       int64
-	percentage  float64
+	hash                     string
+	description              string
+	hashCount                int64
+	recovered                bool
+	count                    int64
+	percentage               float64
+	countRetries             int64
+	percentageWithoutRetries float64
 }
 
 // NewData ...
 func NewData(name string) *Data {
 	return &Data{
-		name:    name,
-		Records: make(map[string]*Record),
+		name:           name,
+		Records:        make(map[string]*Record),
+		AggHashRecords: make(map[string][]*Record),
 	}
 }
 
 // NewRecord ...
-func NewRecord(description string) *Record {
+func NewRecord(description string, hash string) *Record {
 	return &Record{
+		hash:        hash,
 		description: description,
 	}
 }
 
 // AddRecord ...
 func (d *Data) AddRecord(record *Record) {
+	if record.hash != "" {
+		d.AggHashRecords[record.hash] = append(d.AggHashRecords[record.hash], record)
+	}
+
 	if d.Records[record.description] == nil {
 		d.Records[record.description] = record
 	}
@@ -82,8 +99,27 @@ func (d *Data) Date() {
 
 // Info ...
 func (d *Data) Info() {
+	m := make(map[string]int64)
+
+	for _, h := range d.AggHashRecords {
+		// Repeated hash, retried
+		if len(h) > 1 {
+			d.NumTotalRetries += int64(len(h))
+
+			for _, v := range h {
+				m[v.description]++
+			}
+		}
+	}
+
+	// Assign to aggregate fields the number of retries
+	for k, v := range m {
+		d.Records[k].countRetries = v
+	}
+
 	for _, v := range d.Records {
 		v.percentage = float64(v.count) / float64(d.NumTotalColumns) * 100
+		v.percentageWithoutRetries = float64(v.count-v.countRetries) / float64(d.NumTotalColumns-d.NumTotalRetries) * 100
 	}
 }
 
@@ -105,7 +141,54 @@ func (d *Data) Print() {
 		fmt.Printf("%2.3f", v.percentage)
 		fmt.Print("%   ")
 		fmt.Print(v.count)
+		fmt.Printf("   %2.3f", v.percentageWithoutRetries)
+		fmt.Print("%   ")
+		fmt.Print(v.count - v.countRetries)
 		fmt.Println("")
+	}
+}
+
+// Export ...
+func (d *Data) Export() {
+	n := fmt.Sprintf("%s.csv", d.date.String())
+	f, err := os.Open(n)
+	if err != nil {
+		// Create file
+		f, err = os.Create(n)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	defer f.Close()
+
+	// New CSV Writter
+	w := csv.NewWriter(f)
+	defer w.Flush()
+
+	// Write into the file
+	err = w.Write([]string{
+		"Description",
+		"Percentage with retries",
+		"Total count",
+		"Percentage without retries",
+		"Total count without retries",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, v := range d.Records {
+		err := w.Write([]string{
+			v.description,
+			strconv.FormatFloat(v.percentage, 'f', 6, 64),
+			strconv.Itoa(int(v.count)),
+			strconv.FormatFloat(v.percentageWithoutRetries, 'f', 6, 64),
+			strconv.Itoa(int(v.count - v.countRetries)),
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 

@@ -15,9 +15,9 @@ import (
 )
 
 const (
-	PADDING              = 45
-	CONN_REFUSED         = "connection refused"
-	NO_ERROR_DESCRIPTION = "OK "
+	PADDING      = 45
+	NUM_PADDING  = 9
+	CONN_REFUSED = "connection refused"
 )
 
 // Data ...
@@ -34,8 +34,6 @@ type Data struct {
 type Record struct {
 	hash                     string
 	description              string
-	hashCount                int64
-	recovered                bool
 	count                    int64
 	percentage               float64
 	countRetries             int64
@@ -139,10 +137,13 @@ func (d *Data) Print() {
 			fmt.Printf("\033[%dC", PADDING)
 		}
 		fmt.Printf("%2.3f", v.percentage)
-		fmt.Print("%   ")
+		fmt.Print("%")
+		fmt.Printf("\033[%dC", NUM_PADDING-(len(strconv.FormatFloat(v.percentage, 'f', 3, 64))+1))
 		fmt.Print(v.count)
-		fmt.Printf("   %2.3f", v.percentageWithoutRetries)
-		fmt.Print("%   ")
+		fmt.Printf("\033[%dC", NUM_PADDING-(len(strconv.Itoa(int(v.count)))))
+		fmt.Printf("%2.3f", v.percentageWithoutRetries)
+		fmt.Print("%")
+		fmt.Printf("\033[%dC", NUM_PADDING-(len(strconv.FormatFloat(v.percentageWithoutRetries, 'f', 3, 64))+1))
 		fmt.Print(v.count - v.countRetries)
 		fmt.Println("")
 	}

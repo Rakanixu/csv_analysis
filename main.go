@@ -136,7 +136,7 @@ func analyzeCSVs(paths []string) {
 }
 
 func analyzeCSV(name string, csv []string, aggDimensionIndex, filterIndex, metadataIndex int) {
-	if aggDimensionIndex >= 0 && filterIndex >= 0 && metadataIndex >= 0 {
+	if aggDimensionIndex >= 0 && filterIndex >= 0 /* && metadataIndex >= 0 */ {
 		var n int64
 		d := data.NewData(name)
 		f := false
@@ -147,7 +147,6 @@ func analyzeCSV(name string, csv []string, aggDimensionIndex, filterIndex, metad
 
 		for _, v := range csv {
 			r := strings.Split(v, ",")
-
 			// Don't push records which type is different to the one set on flags
 			if len(r) > 1 && len(r) > aggDimensionIndex && len(r) > filterIndex && !(f && r[filterIndex] != *value) {
 				var rh string

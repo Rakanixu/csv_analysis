@@ -157,7 +157,13 @@ func (d *Data) Print() {
 
 // Export ...
 func (d *Data) Export() {
-	n := fmt.Sprintf("%s.csv", d.date.String())
+	path := "csv/overview"
+	err := os.MkdirAll(path, 0711)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	n := fmt.Sprintf("%s/%s.csv", path, d.date.String())
 	f, err := os.Open(n)
 	if err != nil {
 		// Create file
@@ -200,7 +206,13 @@ func (d *Data) Export() {
 }
 
 func (d *Data) ExportDataRows() {
-	n := fmt.Sprintf("%s.output.csv", d.date.String())
+	path := "csv/data"
+	err := os.MkdirAll(path, 0711)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	n := fmt.Sprintf("%s/%s.output.csv", path, d.date.String())
 	f, err := os.Open(n)
 	if err != nil {
 		f, err = os.Create(n)

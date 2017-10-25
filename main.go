@@ -57,6 +57,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if err := os.RemoveAll("csv/"); err != nil {
+		log.Println(err)
+	}
+
 	analyzeCSVs(getCSVFiles(*p))
 
 	sort.Sort(data.DataSlice(results))

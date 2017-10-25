@@ -22,25 +22,28 @@ import (
 
 const (
 	ERR_CODE        = "Error Code"
+	OUTPUT_ALL      = "all"
 	METADATA        = "Metadata"
 	TRIM_LEFT_JSON  = `retry_hash`
 	TRIM_RIGHT_JSON = `streamable_id`
 )
 
 var (
-	results               []*data.Data
-	key, value, dimension *string
-	dbEndoint             *string
-	maxGoroutines         *int
-	wg                    sync.WaitGroup
+	results                       []*data.Data
+	key, value, dimension, output *string
+	dbEndoint                     *string
+	maxGoroutines                 *int
+	wg                            sync.WaitGroup
 )
 
 func main() {
 	p := flag.String("p", "", "Path to CSV files")
 	maxGoroutines = flag.Int("t", 4, "Number of parallel gourotines")
 	dimension = flag.String("c", ERR_CODE, "Column / dimension to apply aggregation")
+	output = flag.String("output", OUTPUT_ALL, "Value to filter in rows outputted into output.csv")
 	key = flag.String("dimension_key", "Device", "Dimension key name")
 	value = flag.String("dimension_val", "Chromecast", "Dimension value")
+
 	dbEndoint = flag.String("db_endpoint", "http://localhost:9200", "DB endpoint")
 	flag.Parse()
 
@@ -62,6 +65,8 @@ func main() {
 		v.Print()
 		// CSV generation
 		v.Export()
+		// CSV data dump
+		v.ExportDataRows()
 		// Dump to registered DB
 		v.Dump()
 	}
@@ -164,6 +169,11 @@ func analyzeCSV(name string, csv []string, aggDimensionIndex, filterIndex, metad
 					// HARDCODED: specific case for a CSV specific pattern
 					des = fmt.Sprintf("%s %s", r[aggDimensionIndex], r[1])
 				}
+
+				if *output == OUTPUT_ALL || *output == r[aggDimensionIndex] {
+					d.AddDataRow(v)
+				}
+
 				d.AddRecord(data.NewRecord(des, rh))
 			}
 		}

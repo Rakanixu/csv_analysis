@@ -24,6 +24,7 @@ const (
 type Data struct {
 	date            time.Time
 	name            string
+	DataRows        []string
 	Records         map[string]*Record
 	AggHashRecords  map[string][]*Record
 	NumTotalColumns int64
@@ -67,6 +68,11 @@ func (d *Data) AddRecord(record *Record) {
 		d.Records[record.description] = record
 	}
 	d.Records[record.description].count++
+}
+
+// AddRecord ...
+func (d *Data) AddDataRow(dataRow string) {
+	d.DataRows = append(d.DataRows, dataRow)
 }
 
 // SetTotal ...
@@ -187,6 +193,31 @@ func (d *Data) Export() {
 			strconv.FormatFloat(v.percentageWithoutRetries, 'f', 6, 64),
 			strconv.Itoa(int(v.count - v.countRetries)),
 		})
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
+func (d *Data) ExportDataRows() {
+	n := fmt.Sprintf("%s.output.csv", d.date.String())
+	f, err := os.Open(n)
+	if err != nil {
+		f, err = os.Create(n)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	defer f.Close()
+
+	// New CSV Writter
+	w := csv.NewWriter(f)
+	defer w.Flush()
+
+	// Write into the file
+	for _, v := range d.DataRows {
+		err = w.Write(strings.Split(v, ","))
 		if err != nil {
 			log.Fatal(err)
 		}
